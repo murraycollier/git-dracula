@@ -45,8 +45,8 @@ func RenderFull(res *git.StatusResult, client *git.Client, cfg ViewConfig, style
 			cardWidth = width - 2
 		}
 	}
-	if cardWidth < 35 {
-		cardWidth = 35
+	if cardWidth < 50 {
+		cardWidth = 50
 	}
 
 	availWidth := cardWidth - 4
