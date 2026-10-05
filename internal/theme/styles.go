@@ -11,14 +11,17 @@ type Styles struct {
 
 	// Header elements
 	RepoBadge      lipgloss.Style
+	OnText         lipgloss.Style
 	BranchBadge    lipgloss.Style
 	RemoteSynced   lipgloss.Style
 	RemoteAhead    lipgloss.Style
 	RemoteBehind   lipgloss.Style
 	RemoteDiverged lipgloss.Style
 	CommitHash     lipgloss.Style
+	CommitAuthor   lipgloss.Style
 	CommitSubject  lipgloss.Style
 	CommitMeta     lipgloss.Style
+	Divider        lipgloss.Style
 	StashBadge     lipgloss.Style
 	StateBadge     lipgloss.Style
 
@@ -85,31 +88,30 @@ func DefaultStyles() Styles {
 	return Styles{
 		// Card / Frame
 		Card: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
+			Border(lipgloss.DoubleBorder()).
 			BorderForeground(Purple).
-			Padding(0, 1),
+			Padding(1, 2),
 
 		CleanCard: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(Green).
-			Padding(1, 2).
-			Align(lipgloss.Center),
+			Border(lipgloss.DoubleBorder()).
+			BorderForeground(Purple).
+			Padding(1, 2),
 
 		WarningCard: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
+			Border(lipgloss.DoubleBorder()).
 			BorderForeground(Red).
 			Padding(1, 2),
 
 		// Header elements
 		RepoBadge: lipgloss.NewStyle().
-			Background(Purple).
-			Foreground(DarkerBg).
-			Bold(true).
-			Padding(0, 1),
+			Foreground(Purple).
+			Bold(true),
+
+		OnText: lipgloss.NewStyle().
+			Foreground(Comment),
 
 		BranchBadge: lipgloss.NewStyle().
-			Foreground(Cyan).
-			Bold(true),
+			Foreground(Cyan),
 
 		RemoteSynced: lipgloss.NewStyle().
 			Foreground(Green),
@@ -127,14 +129,19 @@ func DefaultStyles() Styles {
 			Bold(true),
 
 		CommitHash: lipgloss.NewStyle().
-			Foreground(Pink).
-			Bold(true),
+			Foreground(Yellow),
+
+		CommitAuthor: lipgloss.NewStyle().
+			Foreground(Purple),
 
 		CommitSubject: lipgloss.NewStyle().
-			Foreground(Foreground),
+			Foreground(Purple),
 
 		CommitMeta: lipgloss.NewStyle().
 			Foreground(Comment),
+
+		Divider: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#545454")),
 
 		StashBadge: lipgloss.NewStyle().
 			Background(CurrentLine).
@@ -150,27 +157,23 @@ func DefaultStyles() Styles {
 
 		// Summary Pills
 		PillStaged: lipgloss.NewStyle().
-			Background(Green).
-			Foreground(DarkerBg).
-			Bold(true).
+			Background(CurrentLine).
+			Foreground(Green).
 			Padding(0, 1),
 
 		PillUnstaged: lipgloss.NewStyle().
-			Background(Yellow).
-			Foreground(DarkerBg).
-			Bold(true).
+			Background(CurrentLine).
+			Foreground(Orange).
 			Padding(0, 1),
 
 		PillUntracked: lipgloss.NewStyle().
-			Background(Pink).
-			Foreground(DarkerBg).
-			Bold(true).
+			Background(CurrentLine).
+			Foreground(Cyan).
 			Padding(0, 1),
 
 		PillConflicts: lipgloss.NewStyle().
-			Background(Red).
-			Foreground(Foreground).
-			Bold(true).
+			Background(CurrentLine).
+			Foreground(Red).
 			Padding(0, 1),
 
 		PillCount: lipgloss.NewStyle().
@@ -179,20 +182,16 @@ func DefaultStyles() Styles {
 
 		// Section Headers
 		SectionStaged: lipgloss.NewStyle().
-			Foreground(Green).
-			Bold(true),
+			Foreground(Green),
 
 		SectionUnstaged: lipgloss.NewStyle().
-			Foreground(Yellow).
-			Bold(true),
+			Foreground(Orange),
 
 		SectionUntracked: lipgloss.NewStyle().
-			Foreground(Pink).
-			Bold(true),
+			Foreground(Cyan),
 
 		SectionConflicts: lipgloss.NewStyle().
-			Foreground(Red).
-			Bold(true),
+			Foreground(Red),
 
 		SectionCount: lipgloss.NewStyle().
 			Foreground(Comment),

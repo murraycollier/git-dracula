@@ -63,14 +63,14 @@ func TestRenderDirtyState(t *testing.T) {
 	if !strings.Contains(out, "feature/tui") {
 		t.Errorf("expected branch feature/tui in output")
 	}
-	if !strings.Contains(out, "STAGED CHANGES") {
-		t.Errorf("expected staged section in output")
+	if !strings.Contains(out, "+ staged") {
+		t.Errorf("expected + staged section in output, got: %s", out)
 	}
-	if !strings.Contains(out, "UNSTAGED CHANGES") {
-		t.Errorf("expected unstaged section in output")
+	if !strings.Contains(out, "~ modified") {
+		t.Errorf("expected ~ modified section in output, got: %s", out)
 	}
-	if !strings.Contains(out, "UNTRACKED FILES") {
-		t.Errorf("expected untracked section in output")
+	if !strings.Contains(out, "? untracked") {
+		t.Errorf("expected ? untracked section in output, got: %s", out)
 	}
 }
 

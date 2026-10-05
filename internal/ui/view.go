@@ -18,14 +18,14 @@ type ViewConfig struct {
 	Width    int
 }
 
-// RenderFull formats and renders the complete Dracula-themed status output
+// RenderFull formats and renders the complete Dracula-themed status output matching the screenshot
 func RenderFull(res *git.StatusResult, client *git.Client, cfg ViewConfig, styles theme.Styles) string {
 	width := cfg.Width
 	if width <= 0 {
 		if w, _, err := term.GetSize(0); err == nil && w > 20 {
 			width = w
 		} else {
-			width = 90
+			width = 80
 		}
 	}
 	if width > 120 {
@@ -36,62 +36,166 @@ func RenderFull(res *git.StatusResult, client *git.Client, cfg ViewConfig, style
 		return RenderCompact(res, styles)
 	}
 
-	var sb strings.Builder
+	cardWidth := width - 4
+	if cardWidth < 68 {
+		cardWidth = 68
+	}
 
-	// 1. Header Card
-	sb.WriteString(renderHeaderCard(res, styles, width))
-	sb.WriteString("\n\n")
+	dividerDots := styles.Divider.Render(strings.Repeat("· ", 20) + "·")
 
-	// 2. If working tree is clean
+	var contentLines []string
+
+	// 1. Repo & Branch line (e.g. "homelab   on main")
+	repo := styles.RepoBadge.Render(res.RepoName)
+	on := styles.OnText.Render("on")
+	branch := styles.BranchBadge.Render(res.Branch.Head)
+	if res.Branch.Detached {
+		on = styles.OnText.Render("detached at")
+	} else if res.Branch.Initial {
+		branch += " " + styles.OnText.Render("(initial)")
+	}
+	contentLines = append(contentLines, fmt.Sprintf("%s   %s %s", repo, on, branch))
+
+	// 2. Upstream line (e.g. "origin/main   ✓ up to date")
+	var upstreamParts []string
+	if res.Branch.Upstream != "" {
+		upstream := styles.CommitMeta.Render(res.Branch.Upstream)
+		var syncText string
+		ahead := res.Branch.Ahead
+		behind := res.Branch.Behind
+		if ahead == 0 && behind == 0 {
+			syncText = styles.RemoteSynced.Render("✓ up to date")
+		} else if ahead > 0 && behind == 0 {
+			syncText = styles.RemoteAhead.Render(fmt.Sprintf("⇡%d ahead", ahead))
+		} else if ahead == 0 && behind > 0 {
+			syncText = styles.RemoteBehind.Render(fmt.Sprintf("⇣%d behind", behind))
+		} else {
+			syncText = styles.RemoteDiverged.Render(fmt.Sprintf("⇡%d ⇣%d diverged", ahead, behind))
+		}
+		upstreamParts = append(upstreamParts, fmt.Sprintf("%s   %s", upstream, syncText))
+	} else if !res.Branch.Initial {
+		upstreamParts = append(upstreamParts, styles.CommitMeta.Render("no upstream"))
+	}
+
+	if res.StashCount > 0 {
+		upstreamParts = append(upstreamParts, styles.StashBadge.Render(fmt.Sprintf("📦 %d stashed", res.StashCount)))
+	}
+	if res.State != git.StateNormal {
+		upstreamParts = append(upstreamParts, styles.StateBadge.Render("⚠ "+string(res.State)))
+	}
+
+	if len(upstreamParts) > 0 {
+		contentLines = append(contentLines, strings.Join(upstreamParts, "   "))
+	}
+
+	// 3. Divider
+	contentLines = append(contentLines, dividerDots)
+
+	// 4. Commit hash, author, relative time (e.g. "fd18a0b   Murray Collier · 7 months ago")
+	if res.HeadCommit != nil {
+		hash := styles.CommitHash.Render(res.HeadCommit.Hash)
+		author := styles.CommitAuthor.Render(res.HeadCommit.Author)
+		dot := styles.CommitMeta.Render("·")
+		relTime := styles.CommitMeta.Render(res.HeadCommit.RelativeTime)
+		contentLines = append(contentLines, fmt.Sprintf("%s   %s  %s  %s", hash, author, dot, relTime))
+
+		// 5. Commit subject (e.g. "chore(tidy): Cleaning up temp files")
+		contentLines = append(contentLines, styles.CommitSubject.Render(truncate(res.HeadCommit.Subject, cardWidth-6)))
+	} else {
+		contentLines = append(contentLines, styles.CommitMeta.Render("No commits yet"))
+	}
+
+	// 6. Divider
+	contentLines = append(contentLines, dividerDots)
+
+	// 7. Summary Pills (e.g. " staged 1   modified 0   untracked 1   conflicts 0")
+	stagedPill := styles.PillStaged.Render(fmt.Sprintf("staged %d", len(res.Staged)))
+	modifiedPill := styles.PillUnstaged.Render(fmt.Sprintf("modified %d", len(res.Unstaged)))
+	untrackedPill := styles.PillUntracked.Render(fmt.Sprintf("untracked %d", len(res.Untracked)))
+	conflictsPill := styles.PillConflicts.Render(fmt.Sprintf("conflicts %d", len(res.Conflicts)))
+	pillsLine := fmt.Sprintf("%s   %s   %s   %s", stagedPill, modifiedPill, untrackedPill, conflictsPill)
+	contentLines = append(contentLines, pillsLine)
+
+	// 8. Divider
+	contentLines = append(contentLines, dividerDots)
+
+	// 9. File sections or clean message
 	if res.IsClean() {
-		sb.WriteString(renderCleanState(res, styles, width))
-		sb.WriteString("\n")
-		return sb.String()
-	}
+		contentLines = append(contentLines, "")
+		contentLines = append(contentLines, styles.SectionStaged.Render("🦇 Working tree is spotless. Dracula approves!"))
+		contentLines = append(contentLines, styles.CommitMeta.Render("Nothing to commit, working directory is clean."))
+	} else {
+		var sections []string
 
-	// 3. Summary Pills Bar
-	sb.WriteString(renderSummaryBar(res, styles))
-	sb.WriteString("\n\n")
+		// Conflicts
+		if len(res.Conflicts) > 0 {
+			var sb strings.Builder
+			sb.WriteString(styles.SectionConflicts.Render("! conflicts") + "\n")
+			for _, f := range res.Conflicts {
+				sb.WriteString("  " + styles.SectionConflicts.Render("! ") + styles.FileName.Render(f.Path) + "\n")
+			}
+			sections = append(sections, strings.TrimRight(sb.String(), "\n"))
+		}
 
-	// 4. Conflicts Section (if any)
-	if len(res.Conflicts) > 0 {
-		sb.WriteString(renderSection(SectionConflictDef(res.Conflicts, styles), width))
-		sb.WriteString("\n")
-	}
+		// Staged
+		if len(res.Staged) > 0 {
+			var sb strings.Builder
+			sb.WriteString(styles.SectionStaged.Render("+ staged") + "\n")
+			for _, f := range res.Staged {
+				sym := "+"
+				switch f.StatusCode {
+				case "D":
+					sym = "-"
+				case "M":
+					sym = "~"
+				case "R":
+					sym = "➜"
+				}
+				sb.WriteString("  " + styles.SectionStaged.Render(sym+" ") + styles.FileName.Render(f.Path) + "\n")
+			}
+			sections = append(sections, strings.TrimRight(sb.String(), "\n"))
+		}
 
-	// 5. Staged Changes Section
-	if len(res.Staged) > 0 {
-		sb.WriteString(renderSection(SectionStagedDef(res.Staged, styles), width))
-		sb.WriteString("\n")
-	}
+		// Modified (Unstaged)
+		if len(res.Unstaged) > 0 {
+			var sb strings.Builder
+			sb.WriteString(styles.SectionUnstaged.Render("~ modified") + "\n")
+			for _, f := range res.Unstaged {
+				sym := "~"
+				if f.StatusCode == "D" {
+					sym = "-"
+				}
+				sb.WriteString("  " + styles.SectionUnstaged.Render(sym+" ") + styles.FileName.Render(f.Path) + "\n")
+			}
+			sections = append(sections, strings.TrimRight(sb.String(), "\n"))
+		}
 
-	// 6. Unstaged Changes Section
-	if len(res.Unstaged) > 0 {
-		sb.WriteString(renderSection(SectionUnstagedDef(res.Unstaged, styles), width))
-		sb.WriteString("\n")
-	}
+		// Untracked
+		if len(res.Untracked) > 0 {
+			var sb strings.Builder
+			sb.WriteString(styles.SectionUntracked.Render("? untracked") + "\n")
+			for _, f := range res.Untracked {
+				sb.WriteString("  " + styles.SectionUntracked.Render("? ") + styles.FileName.Render(f.Path) + "\n")
+			}
+			sections = append(sections, strings.TrimRight(sb.String(), "\n"))
+		}
 
-	// 7. Untracked Files Section
-	if len(res.Untracked) > 0 {
-		sb.WriteString(renderSection(SectionUntrackedDef(res.Untracked, styles), width))
-		sb.WriteString("\n")
-	}
-
-	// 8. Optional Inline Diffs
-	if cfg.ShowDiff && client != nil {
-		diffs := renderInlineDiffs(res, client, styles, width)
-		if diffs != "" {
-			sb.WriteString("\n")
-			sb.WriteString(diffs)
-			sb.WriteString("\n")
+		if len(sections) > 0 {
+			// One blank line before sections, and exactly one blank line between sections
+			contentLines = append(contentLines, "", strings.Join(sections, "\n\n"))
 		}
 	}
 
-	// 9. Footer Hint
-	sb.WriteString(renderFooter(styles))
-	sb.WriteString("\n")
+	// Optional Inline Diffs
+	if cfg.ShowDiff && client != nil {
+		diffs := renderInlineDiffs(res, client, styles, cardWidth-6)
+		if diffs != "" {
+			contentLines = append(contentLines, "", diffs)
+		}
+	}
 
-	return sb.String()
+	fullContent := strings.Join(contentLines, "\n")
+	return styles.Card.Width(cardWidth).Render(fullContent) + "\n"
 }
 
 func renderHeaderCard(res *git.StatusResult, styles theme.Styles, width int) string {
