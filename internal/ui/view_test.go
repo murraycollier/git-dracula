@@ -123,3 +123,29 @@ func TestHighlightDiff(t *testing.T) {
 		t.Errorf("expected diff lines, got: %s", highlighted)
 	}
 }
+
+func TestRenderCardWidthMatchesCommitMessage(t *testing.T) {
+	styles := theme.DefaultStyles()
+	commitMsg := "build: track precompiled binary in bin/ and unignore"
+	status := &git.StatusResult{
+		RepoName: "git-dracula",
+		Branch: git.BranchInfo{
+			Head:     "master",
+			Upstream: "origin/master",
+		},
+		HeadCommit: &git.CommitInfo{
+			Hash:         "4e10bba",
+			Subject:      commitMsg,
+			Author:       "Murray Collier",
+			RelativeTime: "30 minutes ago",
+		},
+	}
+
+	out := RenderFull(status, nil, ViewConfig{Width: 100}, styles)
+	// Border should enclose commitMsg with exactly 2 spaces on each side (padding: 1, 2)
+	// i.e. "║  " + commitMsg + "  ║"
+	expectedLine := "  " + commitMsg + "  ║"
+	if !strings.Contains(out, expectedLine) {
+		t.Errorf("expected right border to line up with commit message: %q not in output:\n%s", expectedLine, out)
+	}
+}

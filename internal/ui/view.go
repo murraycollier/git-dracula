@@ -25,23 +25,42 @@ func RenderFull(res *git.StatusResult, client *git.Client, cfg ViewConfig, style
 		if w, _, err := term.GetSize(0); err == nil && w > 20 {
 			width = w
 		} else {
-			width = 80
+			width = 100
 		}
 	}
-	if width > 120 {
-		width = 120
+	if width > 140 {
+		width = 140
 	}
 
 	if cfg.Short {
 		return RenderCompact(res, styles)
 	}
 
+	// Size the card so the right-hand border margin lines up with the end of the commit message text
 	cardWidth := width - 4
-	if cardWidth < 68 {
-		cardWidth = 68
+	if res.HeadCommit != nil && res.HeadCommit.Subject != "" {
+		commitWidth := lipgloss.Width(res.HeadCommit.Subject)
+		cardWidth = commitWidth + 4
+		if cardWidth > width-2 {
+			cardWidth = width - 2
+		}
+	}
+	if cardWidth < 35 {
+		cardWidth = 35
 	}
 
-	dividerDots := styles.Divider.Render(strings.Repeat("· ", 20) + "·")
+	availWidth := cardWidth - 4
+	numDots := 21
+	if availWidth < 41 && availWidth >= 4 {
+		numDots = (availWidth + 1) / 2
+	}
+	var dotStr string
+	if numDots > 1 {
+		dotStr = strings.Repeat("· ", numDots-1) + "·"
+	} else {
+		dotStr = "·"
+	}
+	dividerDots := styles.Divider.Render(dotStr)
 
 	var contentLines []string
 
@@ -97,10 +116,14 @@ func RenderFull(res *git.StatusResult, client *git.Client, cfg ViewConfig, style
 		author := styles.CommitAuthor.Render(res.HeadCommit.Author)
 		dot := styles.CommitMeta.Render("·")
 		relTime := styles.CommitMeta.Render(res.HeadCommit.RelativeTime)
-		contentLines = append(contentLines, fmt.Sprintf("%s   %s  %s  %s", hash, author, dot, relTime))
+		line4 := fmt.Sprintf("%s   %s  %s  %s", hash, author, dot, relTime)
+		if lipgloss.Width(line4) > cardWidth-4 {
+			line4 = fmt.Sprintf("%s  %s · %s", hash, author, relTime)
+		}
+		contentLines = append(contentLines, line4)
 
 		// 5. Commit subject (e.g. "chore(tidy): Cleaning up temp files")
-		contentLines = append(contentLines, styles.CommitSubject.Render(truncate(res.HeadCommit.Subject, cardWidth-6)))
+		contentLines = append(contentLines, styles.CommitSubject.Render(truncate(res.HeadCommit.Subject, cardWidth-4)))
 	} else {
 		contentLines = append(contentLines, styles.CommitMeta.Render("No commits yet"))
 	}
@@ -113,7 +136,17 @@ func RenderFull(res *git.StatusResult, client *git.Client, cfg ViewConfig, style
 	modifiedPill := styles.PillUnstaged.Render(fmt.Sprintf("modified %d", len(res.Unstaged)))
 	untrackedPill := styles.PillUntracked.Render(fmt.Sprintf("untracked %d", len(res.Untracked)))
 	conflictsPill := styles.PillConflicts.Render(fmt.Sprintf("conflicts %d", len(res.Conflicts)))
-	pillsLine := fmt.Sprintf("%s   %s   %s   %s", stagedPill, modifiedPill, untrackedPill, conflictsPill)
+
+	var pillsLine string
+	pillsFull := fmt.Sprintf("%s   %s   %s   %s", stagedPill, modifiedPill, untrackedPill, conflictsPill)
+	pillsCompact := fmt.Sprintf("%s %s %s %s", stagedPill, modifiedPill, untrackedPill, conflictsPill)
+	if lipgloss.Width(pillsFull) <= cardWidth-4 {
+		pillsLine = pillsFull
+	} else if lipgloss.Width(pillsCompact) <= cardWidth-4 {
+		pillsLine = pillsCompact
+	} else {
+		pillsLine = fmt.Sprintf("%s  %s\n%s  %s", stagedPill, modifiedPill, untrackedPill, conflictsPill)
+	}
 	contentLines = append(contentLines, pillsLine)
 
 	// 8. Divider
