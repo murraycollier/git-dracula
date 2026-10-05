@@ -139,23 +139,29 @@ func renderHeaderCard(res *git.StatusResult, styles theme.Styles, width int) str
 
 	topLine := strings.Join(topParts, "  ")
 
+	cardWidth := width - 4
+	if cardWidth < 40 {
+		cardWidth = 40
+	}
+
 	// Bottom Line: Latest Commit Info
 	var bottomLine string
 	if res.HeadCommit != nil {
 		hash := styles.CommitHash.Render("◈ " + res.HeadCommit.Hash)
-		subject := styles.CommitSubject.Render(truncate(res.HeadCommit.Subject, 55))
-		authorTime := styles.CommitMeta.Render(fmt.Sprintf("· %s (%s)", res.HeadCommit.Author, res.HeadCommit.RelativeTime))
+		authorTimeStr := fmt.Sprintf("· %s (%s)", res.HeadCommit.Author, res.HeadCommit.RelativeTime)
+		authorTime := styles.CommitMeta.Render(authorTimeStr)
+
+		availSubject := cardWidth - lipgloss.Width(hash) - lipgloss.Width(authorTime) - 6
+		if availSubject < 15 {
+			availSubject = 15
+		}
+		subject := styles.CommitSubject.Render(truncate(res.HeadCommit.Subject, availSubject))
 		bottomLine = fmt.Sprintf("%s %s %s", hash, subject, authorTime)
 	} else {
 		bottomLine = styles.CommitMeta.Render("◈ No commits yet on this branch")
 	}
 
 	content := topLine + "\n" + bottomLine
-	cardWidth := width - 4
-	if cardWidth < 40 {
-		cardWidth = 40
-	}
-
 	return styles.Card.Width(cardWidth).Render(content)
 }
 
