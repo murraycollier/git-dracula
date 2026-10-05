@@ -36,7 +36,18 @@ func RenderFull(res *git.StatusResult, client *git.Client, cfg ViewConfig, style
 		return RenderCompact(res, styles)
 	}
 
-	// Size the card so the right-hand border margin lines up with the end of the commit message text
+	// Summary Pills defined early to calculate minimum width for single-line display
+	stagedPill := styles.PillStaged.Render(fmt.Sprintf("staged %d", len(res.Staged)))
+	modifiedPill := styles.PillUnstaged.Render(fmt.Sprintf("modified %d", len(res.Unstaged)))
+	untrackedPill := styles.PillUntracked.Render(fmt.Sprintf("untracked %d", len(res.Untracked)))
+	conflictsPill := styles.PillConflicts.Render(fmt.Sprintf("conflicts %d", len(res.Conflicts)))
+
+	pillsCompact := fmt.Sprintf("%s %s %s %s", stagedPill, modifiedPill, untrackedPill, conflictsPill)
+	minPillsWidth := lipgloss.Width(pillsCompact)
+	minCardWidth := minPillsWidth + 4
+
+	// Size the card so the right-hand border margin lines up with the end of the commit message text,
+	// while ensuring it is never narrower than the pills line so the pills never wrap.
 	cardWidth := width - 4
 	if res.HeadCommit != nil && res.HeadCommit.Subject != "" {
 		commitWidth := lipgloss.Width(res.HeadCommit.Subject)
@@ -45,8 +56,8 @@ func RenderFull(res *git.StatusResult, client *git.Client, cfg ViewConfig, style
 			cardWidth = width - 2
 		}
 	}
-	if cardWidth < 50 {
-		cardWidth = 50
+	if cardWidth < minCardWidth {
+		cardWidth = minCardWidth
 	}
 
 	availWidth := cardWidth - 4
@@ -131,21 +142,16 @@ func RenderFull(res *git.StatusResult, client *git.Client, cfg ViewConfig, style
 	// 6. Divider
 	contentLines = append(contentLines, dividerDots)
 
-	// 7. Summary Pills (e.g. " staged 1   modified 0   untracked 1   conflicts 0")
-	stagedPill := styles.PillStaged.Render(fmt.Sprintf("staged %d", len(res.Staged)))
-	modifiedPill := styles.PillUnstaged.Render(fmt.Sprintf("modified %d", len(res.Unstaged)))
-	untrackedPill := styles.PillUntracked.Render(fmt.Sprintf("untracked %d", len(res.Untracked)))
-	conflictsPill := styles.PillConflicts.Render(fmt.Sprintf("conflicts %d", len(res.Conflicts)))
-
+	// 7. Summary Pills - strictly on a single line, never wrapped
 	var pillsLine string
-	pillsFull := fmt.Sprintf("%s   %s   %s   %s", stagedPill, modifiedPill, untrackedPill, conflictsPill)
-	pillsCompact := fmt.Sprintf("%s %s %s %s", stagedPill, modifiedPill, untrackedPill, conflictsPill)
-	if lipgloss.Width(pillsFull) <= cardWidth-4 {
-		pillsLine = pillsFull
-	} else if lipgloss.Width(pillsCompact) <= cardWidth-4 {
-		pillsLine = pillsCompact
+	pillsWide := fmt.Sprintf("%s   %s   %s   %s", stagedPill, modifiedPill, untrackedPill, conflictsPill)
+	pillsMid := fmt.Sprintf("%s  %s  %s  %s", stagedPill, modifiedPill, untrackedPill, conflictsPill)
+	if lipgloss.Width(pillsWide) <= cardWidth-4 {
+		pillsLine = pillsWide
+	} else if lipgloss.Width(pillsMid) <= cardWidth-4 {
+		pillsLine = pillsMid
 	} else {
-		pillsLine = fmt.Sprintf("%s  %s\n%s  %s", stagedPill, modifiedPill, untrackedPill, conflictsPill)
+		pillsLine = pillsCompact
 	}
 	contentLines = append(contentLines, pillsLine)
 

@@ -149,3 +149,33 @@ func TestRenderCardWidthMatchesCommitMessage(t *testing.T) {
 		t.Errorf("expected right border to line up with commit message: %q not in output:\n%s", expectedLine, out)
 	}
 }
+
+func TestRenderPillsNeverWrap(t *testing.T) {
+	styles := theme.DefaultStyles()
+	// Even with a very short commit message, the pills line must never wrap onto multiple lines
+	status := &git.StatusResult{
+		RepoName: "tiny",
+		Branch: git.BranchInfo{
+			Head: "main",
+		},
+		HeadCommit: &git.CommitInfo{
+			Hash:         "1234567",
+			Subject:      "init",
+			Author:       "Murray Collier",
+			RelativeTime: "1m ago",
+		},
+	}
+
+	out := RenderFull(status, nil, ViewConfig{Width: 100}, styles)
+	// Both staged and conflicts must be on the same line inside the border
+	found := false
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "staged") && strings.Contains(line, "conflicts") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected all pills to be on the same line without wrapping, got:\n%s", out)
+	}
+}
